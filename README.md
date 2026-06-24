@@ -21,9 +21,10 @@ Valid intervals: `M1 M5 M15 M30 H1 H4 D1 W1`
 
 ### Local
 
+Activate whatever Python environment you use, then install dependencies:
+
 ```bash
-source ~/env/.venv/bin/activate
-uv pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 MongoDB defaults to `mongodb://localhost:27018`, database `forexfactory`. Override via env vars:
@@ -85,8 +86,6 @@ scrapy crawl calendar -s ITEM_PIPELINES={}
 `query_mongo.py` is a CLI for all 7 collections:
 
 ```bash
-source ~/env/.venv/bin/activate
-
 python query_mongo.py stats                                      # row counts
 python query_mongo.py bars --instrument EURUSD --interval H1    # OHLCV bars
 python query_mongo.py positions --instrument USDJPY --limit 50  # trader ratios

@@ -1,15 +1,12 @@
-# CLAUDE.md
+# AGENTs.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Commands
 
 ```bash
-# Activate virtualenv before any Python work
-source ~/env/.venv/bin/activate
-
-# Install dependencies
-uv pip install -r requirements.txt
+# Activate your Python environment, then install dependencies
+pip install -r requirements.txt
 
 # Run all tests (from project root, where tests/ lives)
 pytest tests/
