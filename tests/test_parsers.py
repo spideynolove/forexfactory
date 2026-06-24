@@ -94,13 +94,40 @@ def test_news_parse():
     spider = NewsSpider()
     request = Request(url='http://test', meta={'news_type': 'latest'})
     response = HtmlResponse(url='http://test', body=_read('news.html'), request=request)
-    items = list(spider.parse(response))
-    assert len(items) == 2
+    reqs = list(spider.parse(response))
+    assert len(reqs) == 2
+    assert all(isinstance(r, Request) for r in reqs)
+    assert reqs[0].meta['news_type'] == 'latest'
+    assert reqs[0].meta['title'] == 'Fed Chair Powell speaks at economic conference'
+    assert reqs[0].meta['ff_url'] == 'https://www.forexfactory.com/news/11111-fed-chair-powell'
+    assert reqs[0].url == 'https://www.forexfactory.com/news/11111-fed-chair-powell'
+
+
+def test_news_parse_detail():
+    spider = NewsSpider()
+    meta = {
+        'news_id': '11111',
+        'news_type': 'latest',
+        'datetime': '2024-07-01 00:00',
+        'title': 'Fed Chair Powell speaks at economic conference',
+        'ff_url': 'https://www.forexfactory.com/news/11111-fed-chair-powell',
+    }
+    request = Request(url='https://www.forexfactory.com/news/11111-fed-chair-powell', meta=meta)
+    response = HtmlResponse(
+        url='https://www.forexfactory.com/news/11111-fed-chair-powell',
+        body=_read('news_detail.html'),
+        request=request,
+    )
+    items = list(spider.parse_detail(response))
+    assert len(items) == 1
     assert isinstance(items[0], NewsItem)
     assert items[0]['news_type'] == 'latest'
-    assert items[0]['datetime'] == '2024-07-01 00:00'
-    assert items[0]['title'] == 'Fed Chair Powell speaks at economic conference'
-    assert items[0]['source_url'] == 'https://www.forexfactory.com/news/11111-fed-chair-powell'
+    assert items[0]['news_id'] == '11111'
+    assert items[0]['instrument'] == 'EURUSD'
+    assert items[0]['mainterm'] == 'EUR/USD'
+    assert items[0]['source_url'] == 'https://www.federalreserve.gov/newsevents/speech/powell20240701.htm'
+    assert 'full story' not in items[0]['content']
+    assert len(items[0]['content']) > 50
 
 
 def test_instruments_parse():

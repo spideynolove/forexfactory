@@ -71,17 +71,57 @@ class NewsSpider(Spider):
                 abs_ts = self._parse_relative_time(time_text, ref_ts)
                 datetime_str = get_unixtime(str(abs_ts), divide=1, have_hour=True, timezone='UTC')
 
-                news_item = NewsItem()
-                news_item['news_id'] = news_id
-                news_item['news_type'] = news_type
-                news_item['datetime'] = datetime_str
-                news_item['title'] = title
-                news_item['content'] = None
-                news_item['mainterm'] = None
-                news_item['instrument'] = None
-                news_item['source_url'] = f'https://www.forexfactory.com{href}'
+                detail_url = f'https://www.forexfactory.com{href}'
+                yield Request(
+                    detail_url,
+                    headers={**headers, 'Accept': 'text/html,application/xhtml+xml,*/*'},
+                    callback=self.parse_detail,
+                    errback=self.handle_error,
+                    dont_filter=True,
+                    meta={
+                        'impersonate': 'chrome',
+                        'news_id': news_id,
+                        'news_type': news_type,
+                        'datetime': datetime_str,
+                        'title': title,
+                        'ff_url': detail_url,
+                    },
+                )
 
-                yield news_item
+    def parse_detail(self, response):
+        m = response.meta
+        news_item = NewsItem()
+        news_item['news_id'] = m['news_id']
+        news_item['news_type'] = m['news_type']
+        news_item['datetime'] = m['datetime']
+        news_item['title'] = m['title']
+
+        if response.status != 200:
+            news_item['content'] = None
+            news_item['mainterm'] = None
+            news_item['instrument'] = None
+            news_item['source_url'] = m['ff_url']
+            yield news_item
+            return
+
+        sel = response.selector
+        main = sel.css('li.news__article:not(.news_article--alloy)')
+
+        copy_parts = main.css('p.news__copy ::text').getall()
+        content = re.sub(r'\s+', ' ', ' '.join(t.strip() for t in copy_parts if t.strip())).strip()
+        content = re.sub(r'\s*\(\s*full story\s*\)\s*$', '', content, flags=re.I).strip()
+
+        market_href = sel.css('a[href*="/market/"]::attr(href)').get('')
+        instrument = market_href.rstrip('/').rsplit('/', 1)[-1].upper() if market_href else None
+        mainterm = sel.css('a[href*="/market/"]::text').get('').strip() or None
+
+        ext_url = main.css('p.news__caption a[target="_blank"]::attr(href)').get('')
+
+        news_item['content'] = content or None
+        news_item['mainterm'] = mainterm
+        news_item['instrument'] = instrument
+        news_item['source_url'] = ext_url or m['ff_url']
+        yield news_item
 
     def _parse_relative_time(self, text, ref_ts):
         total_seconds = 0
