@@ -33,11 +33,9 @@ export MONGODB_DATABASE=mydb
 
 ## Usage
 
-All scrapy commands run from the `forexfactory/` subdirectory (where `scrapy.cfg` lives):
+All scrapy commands run from the project root:
 
 ```bash
-cd forexfactory
-
 # Today's calendar
 scrapy crawl calendar
 

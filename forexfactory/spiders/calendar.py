@@ -26,7 +26,7 @@ class CalendarSpider(Spider):
             self.logger.warning(f'Calendar request failed: {response.status}')
             return
 
-        rows = response.xpath('//table[@class="calendar__table  "]/tr[contains(@class, "calendar__row calendar_row")]')
+        rows = response.xpath('//table[contains(@class, "calendar__table")]/tr[contains(@class, "calendar__row")]')
         if not rows:
             self.logger.debug('Empty calendar page')
             return

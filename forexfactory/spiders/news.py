@@ -27,7 +27,7 @@ class NewsSpider(Spider):
             return
 
         news_type = response.meta.get('news_type')
-        items = response.xpath('//ul[@class="body flexposts"]/li')
+        items = response.xpath('//ul[contains(@class, "flexposts")]/li')
 
         for item in items:
             timestamp = item.xpath('./@data-timestamp').get()

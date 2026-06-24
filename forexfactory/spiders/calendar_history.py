@@ -53,7 +53,7 @@ class CalendarHistorySpider(Spider):
             self.logger.warning(f'Calendar request failed: {response.status}')
             return
 
-        rows = response.xpath('//table[@class="calendar__table  "]/tr[contains(@class, "calendar__row calendar_row")]')
+        rows = response.xpath('//table[contains(@class, "calendar__table")]/tr[contains(@class, "calendar__row")]')
         if not rows:
             self.logger.debug(f'Empty calendar page for {response.url}')
             return
@@ -90,7 +90,8 @@ class CalendarHistorySpider(Spider):
         for event in events:
             item = CalendarItem()
             item['event_id'] = response.meta.get('event_id')
-            item['datetime'] = event.get('date', '')
+            raw_date = event.get('date', '')
+            item['datetime'] = raw_date + ' 00:00' if raw_date and len(raw_date) == 10 else raw_date
             item['currency'] = event.get('currency', '')
             item['impact'] = event.get('impact_name')
             item['event_type'] = event.get('category')

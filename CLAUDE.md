@@ -17,9 +17,7 @@ pytest tests/
 # Run a single test
 pytest tests/test_parsers.py::test_calendar_parse
 
-# All scrapy commands run from forexfactory/ (where scrapy.cfg lives)
-cd forexfactory
-
+# All scrapy commands run from project root (scrapy.cfg is at repo root)
 scrapy crawl calendar
 scrapy crawl calendar_history -a params=2024-01-01,2024-01-31
 scrapy crawl news

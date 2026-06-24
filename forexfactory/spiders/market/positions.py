@@ -1,10 +1,9 @@
 import json
 
-from scrapy import Spider, Request, FormRequest
+from scrapy import Spider, Request
 
 from forexfactory.items import PositionItem
-from forexfactory.utils import headers, get_unixtime, clean_lst, now
-from forexfactory.payloads import calendar_payload, CALENDAR_CONTENT_TYPE
+from forexfactory.utils import headers, get_unixtime, now
 
 
 class PositionsSpider(Spider):
@@ -28,38 +27,14 @@ class PositionsSpider(Spider):
             raise ValueError('LIMIT must be between 1 and 500')
 
     def start_requests(self):
-        date_str = now().strftime('%b %d, %Y')
-        payload = calendar_payload(date_str)
-        yield FormRequest(
-            'https://www.forexfactory.com/flex.php',
-            method='POST',
-            headers={**headers, 'Content-Type': CALENDAR_CONTENT_TYPE},
-            body=payload,
-            callback=self.parse_stats,
-            errback=self.handle_error,
-            meta={'impersonate': 'chrome', 'symbol': self.symbol, 'interval': self.interval, 'limit': self.limit},
-        )
-
-    def parse_stats(self, response):
-        stats = {}
-        rows = response.xpath('(//table)[1]/tbody/tr')
-        for row in rows:
-            cells = row.xpath('./td//text()').getall()
-            if len(cells) >= 2:
-                label = clean_lst([cells[0]])
-                values = clean_lst(cells[1:])
-                if label:
-                    stats[label] = values
-
-        meta = {**response.meta, 'stats': stats}
         yield Request(
             f'https://www.forexfactory.com/explorerapi.php'
             f'?content=positions&do=positions_graph_data'
-            f'&currency={meta["symbol"]}&interval={meta["interval"]}&limit={meta["limit"]}',
+            f'&currency={self.symbol}&interval={self.interval}&limit={self.limit}',
             headers=headers,
             callback=self.parse_positions,
             errback=self.handle_error,
-            meta=meta,
+            meta={'impersonate': 'chrome', 'symbol': self.symbol, 'interval': self.interval},
         )
 
     def parse_positions(self, response):
@@ -95,7 +70,7 @@ class PositionsSpider(Spider):
             item['short_pct'] = round(short_val, 4)
             item['net'] = None
             item['trader_count'] = None
-            item['stats'] = response.meta.get('stats')
+            item['stats'] = None
 
             yield item
 
