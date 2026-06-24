@@ -1,6 +1,6 @@
 {
   "positions": [
-    {"dateline": 1719792000, "pos": {"long": 55.2, "short": 44.8}},
-    {"dateline": 1719795600, "pos": {"long": 56.1, "short": 43.9}}
+    {"dateline": 1719792000, "traders_ratio": 55.2, "traders_long": 55, "traders_short": 45},
+    {"dateline": 1719795600, "traders_ratio": 56.1, "traders_long": 56, "traders_short": 44}
   ]
 }

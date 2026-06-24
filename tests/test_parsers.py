@@ -1,4 +1,7 @@
 import pytest
+import pytz
+from datetime import datetime
+from unittest.mock import patch
 from scrapy.http import HtmlResponse, TextResponse, Request
 
 from forexfactory.spiders.calendar import CalendarSpider
@@ -26,7 +29,9 @@ def _read(name):
 def test_calendar_parse():
     spider = CalendarSpider()
     response = HtmlResponse(url='http://test', body=_read('calendar_row.html'))
-    items = list(spider.parse(response))
+    fixed_now = datetime(2024, 7, 1, tzinfo=pytz.UTC)
+    with patch('forexfactory.spiders.calendar.now', return_value=fixed_now):
+        items = list(spider.parse(response))
     assert len(items) == 1
     assert isinstance(items[0], CalendarItem)
     assert items[0]['event_id'] == '12345'
@@ -95,7 +100,7 @@ def test_news_parse():
     assert items[0]['news_type'] == 'latest'
     assert items[0]['datetime'] == '2024-07-01 00:00'
     assert items[0]['title'] == 'Fed Chair Powell speaks at economic conference'
-    assert items[0]['source_url'] == 'https://www.forexfactory.com/news'
+    assert items[0]['source_url'] == 'https://www.forexfactory.com/news/11111-fed-chair-powell'
 
 
 def test_instruments_parse():

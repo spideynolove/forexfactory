@@ -3,7 +3,7 @@ import json
 from scrapy import Spider, Request
 
 from forexfactory.items import PositionItem
-from forexfactory.utils import headers, get_unixtime, now
+from forexfactory.utils import headers, get_unixtime, now, SPECIALS
 
 
 class PositionsSpider(Spider):
@@ -19,7 +19,8 @@ class PositionsSpider(Spider):
         if len(parts) != 3:
             raise ValueError('params format: SYMBOL,LIMIT,INTERVAL')
 
-        self.symbol = parts[0].upper()
+        raw_symbol = parts[0].lower()
+        self.symbol = SPECIALS.get(raw_symbol, raw_symbol.upper())
         self.limit = int(parts[1])
         self.interval = parts[2].upper()
 
@@ -58,18 +59,21 @@ class PositionsSpider(Spider):
 
             datetime_str = get_unixtime(str(dateline), divide=1, have_hour=True, timezone='UTC')
 
-            pos = item_data.get('pos', {})
-            long_val = pos.get('long', 0)
-            short_val = pos.get('short', 0)
+            traders_ratio = item_data.get('traders_ratio')
+            if traders_ratio is None:
+                continue
+
+            traders_long = item_data.get('traders_long') or 0
+            traders_short = item_data.get('traders_short') or 0
 
             item = PositionItem()
             item['instrument'] = response.meta.get('symbol', '')
             item['interval'] = response.meta.get('interval', '')
             item['datetime'] = datetime_str
-            item['long_pct'] = round(long_val, 4)
-            item['short_pct'] = round(short_val, 4)
+            item['long_pct'] = round(traders_ratio, 4)
+            item['short_pct'] = round(100 - traders_ratio, 4)
             item['net'] = None
-            item['trader_count'] = None
+            item['trader_count'] = (traders_long + traders_short) or None
             item['stats'] = None
 
             yield item
