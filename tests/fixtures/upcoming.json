@@ -1,0 +1,6 @@
+{
+  "events": [
+    {"id": "123", "dateline": 1719792000, "impact_name": "High", "currency": "USD", "name": "NFP"},
+    {"id": "456", "dateline": 1719795600, "impact_name": "low", "currency": "EUR", "name": "Minor Event"}
+  ]
+}

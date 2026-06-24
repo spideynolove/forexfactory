@@ -1,0 +1,12 @@
+{
+  "data": [
+    {
+      "instrument": {"name": "EUR/USD"},
+      "metrics": {"pip": 0.0001, "digits": 4}
+    },
+    {
+      "instrument": {"name": "GBP/JPY"},
+      "metrics": {"pip": 0.01, "digits": 2}
+    }
+  ]
+}
