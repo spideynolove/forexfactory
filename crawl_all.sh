@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 PAIRS="eurusd,gbpusd,usdjpy,gbpjpy,audusd,usdcad,usdchf"
 INTERVAL="H1"

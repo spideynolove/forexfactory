@@ -31,7 +31,9 @@ ITEM_PIPELINES = {
 MONGODB_URI = os.environ.get('MONGODB_URI', 'mongodb://localhost:27018')
 MONGODB_DATABASE = os.environ.get('MONGODB_DATABASE', 'forexfactory')
 
-ROTATING_PROXY_LIST_PATH = os.environ.get('PROXY_LIST_PATH', '')
+_proxy_path = os.environ.get('PROXY_LIST_PATH', '')
+if _proxy_path:
+    ROTATING_PROXY_LIST_PATH = _proxy_path
 ROTATING_PROXY_PAGE_RETRY_TIMES = 10
 CONCURRENT_REQUESTS_PER_IP = 1
 

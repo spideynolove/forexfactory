@@ -143,8 +143,7 @@ def main():
 
     news_p = sub.add_parser("news", help="Market news articles")
     add_common(news_p)
-    news_p.add_argument("--currency", help="Filter by mainterm/instrument")
-    news_p.set_defaults(func=cmd_news, instrument=None, interval=None, impact=None)
+    news_p.set_defaults(func=cmd_news, instrument=None, currency=None, interval=None, impact=None)
 
     inst_p = sub.add_parser("instruments", help="Market instrument snapshots")
     add_common(inst_p)
