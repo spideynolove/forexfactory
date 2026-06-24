@@ -1,12 +1,12 @@
 import json
+import re
 from datetime import datetime, timedelta
 
 import pytz
-from scrapy import Spider, Request, FormRequest
+from scrapy import Spider, Request
 
 from forexfactory.items import CalendarItem
 from forexfactory.utils import headers
-from forexfactory.payloads import calendar_payload, CALENDAR_CONTENT_TYPE
 
 
 class CalendarHistorySpider(Spider):
@@ -35,17 +35,15 @@ class CalendarHistorySpider(Spider):
 
     def start_requests(self):
         while self.current_date <= self.end_date:
-            date_str = self.current_date.strftime('%b %d, %Y')
-            payload = calendar_payload(date_str)
+            dt = self.current_date
+            day_url = f"{dt.strftime('%b').lower()}{dt.day}.{dt.year}"
             self.current_date += timedelta(days=1)
-            yield FormRequest(
-                'https://www.forexfactory.com/flex.php',
-                method='POST',
-                headers={**headers, 'Content-Type': CALENDAR_CONTENT_TYPE},
-                body=payload,
+            yield Request(
+                f'https://www.forexfactory.com/calendar?day={day_url}',
+                headers={**headers, 'Accept': 'text/html,application/xhtml+xml,*/*'},
                 callback=self.parse_calendar,
                 errback=self.handle_error,
-                meta={'impersonate': 'chrome'},
+                meta={'impersonate': 'chrome', 'day_url': day_url},
             )
 
     def parse_calendar(self, response):
@@ -53,23 +51,28 @@ class CalendarHistorySpider(Spider):
             self.logger.warning(f'Calendar request failed: {response.status}')
             return
 
-        rows = response.xpath('//table[contains(@class, "calendar__table")]/tr[contains(@class, "calendar__row")]')
-        if not rows:
-            self.logger.debug(f'Empty calendar page for {response.url}')
+        days = self._extract_days(response.text)
+        if days is None:
+            self.logger.debug(f'calendarComponentStates not found for {response.meta.get("day_url")}')
             return
 
-        for row in rows:
-            event_id = row.xpath('./@data-eventid').get()
-            if not event_id:
-                continue
+        day_label = self._day_url_to_label(response.meta.get('day_url', ''))
 
-            yield Request(
-                f'https://www.forexfactory.com/calendar/events?event_id={event_id}&limit=200',
-                headers=headers,
-                callback=self.parse_events,
-                errback=self.handle_error,
-                meta={'impersonate': 'chrome', 'event_id': event_id, 'calendar_url': response.url},
-            )
+        for day in days:
+            date_text = re.sub(r'<[^>]+>', '', day.get('date', ''))
+            if day_label and day_label not in date_text:
+                continue
+            for event in day.get('events', []):
+                event_id = str(event.get('id', ''))
+                if not event_id:
+                    continue
+                yield Request(
+                    f'https://www.forexfactory.com/calendar/events?event_id={event_id}&limit=200',
+                    headers=headers,
+                    callback=self.parse_events,
+                    errback=self.handle_error,
+                    meta={'impersonate': 'chrome', 'event_id': event_id, 'calendar_url': response.url},
+                )
 
     def parse_events(self, response):
         if response.status != 200:
@@ -106,6 +109,35 @@ class CalendarHistorySpider(Spider):
                 continue
 
             yield item
+
+    def _extract_days(self, html):
+        for s in re.findall(r'<script[^>]*>(.*?)</script>', html, re.DOTALL):
+            if 'calendarComponentStates' not in s:
+                continue
+            idx = s.find('days: [')
+            if idx == -1:
+                continue
+            start = idx + len('days: ')
+            depth, end = 0, start
+            for i, ch in enumerate(s[start:]):
+                if ch == '[':
+                    depth += 1
+                elif ch == ']':
+                    depth -= 1
+                    if depth == 0:
+                        end = start + i + 1
+                        break
+            try:
+                return json.loads(s[start:end].replace('\\/', '/'))
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return None
+
+    def _day_url_to_label(self, day_url):
+        m = re.match(r'([a-z]+)(\d+)\.', day_url)
+        if not m:
+            return ''
+        return f"{m.group(1).capitalize()} {int(m.group(2))}"
 
     def handle_error(self, failure):
         self.logger.warning(f'Request failed: {failure.request.url}')

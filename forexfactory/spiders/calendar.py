@@ -1,7 +1,10 @@
-from scrapy import Spider, FormRequest
+import json
+import re
+
+from scrapy import Spider, Request
+
 from forexfactory.items import CalendarItem
-from forexfactory.utils import headers, get_unixtime, clean_lst, get_num, now
-from forexfactory.payloads import calendar_payload, CALENDAR_CONTENT_TYPE
+from forexfactory.utils import headers, get_unixtime, get_num, now
 
 
 class CalendarSpider(Spider):
@@ -9,13 +12,11 @@ class CalendarSpider(Spider):
     allowed_domains = ['forexfactory.com']
 
     def start_requests(self):
-        today = now().strftime('%b %d, %Y')
-        payload = calendar_payload(today)
-        yield FormRequest(
-            'https://www.forexfactory.com/flex.php',
-            method='POST',
-            headers={**headers, 'Content-Type': CALENDAR_CONTENT_TYPE},
-            body=payload,
+        dt = now()
+        day_url = f"{dt.strftime('%b').lower()}{dt.day}.{dt.year}"
+        yield Request(
+            f'https://www.forexfactory.com/calendar?day={day_url}',
+            headers={**headers, 'Accept': 'text/html,application/xhtml+xml,*/*'},
             callback=self.parse,
             errback=self.handle_error,
             meta={'impersonate': 'chrome'},
@@ -26,53 +27,65 @@ class CalendarSpider(Spider):
             self.logger.warning(f'Calendar request failed: {response.status}')
             return
 
-        rows = response.xpath('//table[contains(@class, "calendar__table")]/tr[contains(@class, "calendar__row")]')
-        if not rows:
-            self.logger.debug('Empty calendar page')
+        days = self._extract_days(response.text)
+        if days is None:
+            self.logger.warning('calendarComponentStates not found in page')
             return
 
-        for row in rows:
-            event_id = row.xpath('./@data-eventid').get()
-            if not event_id:
+        dt = now()
+        today_label = f"{dt.strftime('%b')} {dt.day}"
+
+        for day in days:
+            date_text = re.sub(r'<[^>]+>', '', day.get('date', ''))
+            if today_label not in date_text:
                 continue
+            for event in day.get('events', []):
+                item = self._make_item(event, response.url)
+                if item:
+                    yield item
 
-            timestamp = row.xpath('./@data-timestamp').get()
-            if not timestamp:
-                self.logger.debug(f'Missing timestamp for event_id {event_id}')
+    def _extract_days(self, html):
+        for s in re.findall(r'<script[^>]*>(.*?)</script>', html, re.DOTALL):
+            if 'calendarComponentStates' not in s:
                 continue
-
-            datetime_str = get_unixtime(timestamp, divide=1000, have_hour=True, timezone='UTC')
-
-            currency = clean_lst(row.xpath('./td[contains(@class, "__currency")]//text()').getall())
-            if not currency:
-                self.logger.debug(f'Missing currency for event_id {event_id}')
+            idx = s.find('days: [')
+            if idx == -1:
                 continue
+            start = idx + len('days: ')
+            depth, end = 0, start
+            for i, ch in enumerate(s[start:]):
+                if ch == '[':
+                    depth += 1
+                elif ch == ']':
+                    depth -= 1
+                    if depth == 0:
+                        end = start + i + 1
+                        break
+            try:
+                return json.loads(s[start:end].replace('\\/', '/'))
+            except (json.JSONDecodeError, ValueError):
+                return None
+        return None
 
-            impact_raw = row.xpath('./td[contains(@class, "__impact")]/span/@title').get()
-            impact = impact_raw.replace(' Impact Expected', '') if impact_raw else ''
-
-            title = clean_lst(row.xpath('./td[contains(@class, "__event")]//text()').getall())
-            if not title:
-                self.logger.debug(f'Missing title for event_id {event_id}')
-                continue
-
-            actual = get_num(clean_lst(row.xpath('./td[contains(@class, "__actual")]//text()').getall()))
-            forecast = get_num(clean_lst(row.xpath('./td[contains(@class, "__forecast")]//text()').getall()))
-            previous = get_num(clean_lst(row.xpath('./td[contains(@class, "__previous")]//text()').getall()))
-
-            item = CalendarItem()
-            item['event_id'] = event_id
-            item['datetime'] = datetime_str
-            item['currency'] = currency
-            item['impact'] = impact if impact else None
-            item['event_type'] = None
-            item['title'] = title
-            item['actual'] = actual if actual else None
-            item['forecast'] = forecast if forecast else None
-            item['previous'] = previous if previous else None
-            item['source_url'] = response.url
-
-            yield item
+    def _make_item(self, event, source_url):
+        event_id = str(event.get('id', ''))
+        dateline = event.get('dateline')
+        currency = event.get('currency', '')
+        title = event.get('name', '')
+        if not event_id or not dateline or not currency or not title:
+            return None
+        item = CalendarItem()
+        item['event_id'] = event_id
+        item['datetime'] = get_unixtime(str(dateline), divide=1, have_hour=True, timezone='UTC')
+        item['currency'] = currency
+        item['impact'] = event.get('impactName') or None
+        item['event_type'] = None
+        item['title'] = title
+        item['actual'] = get_num(event.get('actual', '')) or None
+        item['forecast'] = get_num(event.get('forecast', '')) or None
+        item['previous'] = get_num(event.get('previous', '')) or None
+        item['source_url'] = source_url
+        return item
 
     def handle_error(self, failure):
         self.logger.warning(f'Request failed: {failure.request.url}')

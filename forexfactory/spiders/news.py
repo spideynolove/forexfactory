@@ -1,8 +1,20 @@
-from scrapy import Spider, FormRequest
+import html as htmllib
+import re
+from datetime import datetime
+
+import pytz
+from scrapy import Spider, Request
+from parsel import Selector
 
 from forexfactory.items import NewsItem
-from forexfactory.utils import headers, get_unixtime, clean_lst
-from forexfactory.payloads import NEWS_PAYLOADS, NEWS_CONTENT_TYPE
+from forexfactory.utils import headers, get_unixtime, now
+
+
+NEWS_TYPE_MAP = {
+    'News / Latest Stories': 'latest',
+    'Fundamental Analysis / Latest Stories': 'latest_fa',
+    'Technical Analysis / Latest Stories': 'latest_ta',
+}
 
 
 class NewsSpider(Spider):
@@ -10,46 +22,82 @@ class NewsSpider(Spider):
     allowed_domains = ['forexfactory.com']
 
     def start_requests(self):
-        for news_type, payload in NEWS_PAYLOADS.items():
-            yield FormRequest(
-                'https://www.forexfactory.com/flex.php',
-                method='POST',
-                headers={**headers, 'Content-Type': NEWS_CONTENT_TYPE},
-                body=payload,
-                callback=self.parse,
-                errback=self.handle_error,
-                meta={'impersonate': 'chrome', 'news_type': news_type},
-            )
+        yield Request(
+            'https://www.forexfactory.com/news',
+            headers={**headers, 'Accept': 'text/html,application/xhtml+xml,*/*'},
+            callback=self.parse,
+            errback=self.handle_error,
+            meta={'impersonate': 'chrome'},
+        )
 
     def parse(self, response):
         if response.status != 200:
-            self.logger.warning(f'News request failed for {response.meta.get("news_type")}: {response.status}')
+            self.logger.warning(f'News request failed: {response.status}')
             return
 
-        news_type = response.meta.get('news_type')
-        items = response.xpath('//ul[contains(@class, "flexposts")]/li')
+        for section_m in re.finditer(
+            r'<news-block-component([^>]+)>(.*?)</news-block-component>',
+            response.text, re.DOTALL
+        ):
+            attrs_str = section_m.group(1)
+            section_html = section_m.group(2)
 
-        for item in items:
-            timestamp = item.xpath('./@data-timestamp').get()
-            if not timestamp:
+            title_m = re.search(r'data-title="([^"]+)"', attrs_str)
+            if not title_m:
+                continue
+            section_title = htmllib.unescape(title_m.group(1))
+            news_type = NEWS_TYPE_MAP.get(section_title)
+            if news_type is None:
                 continue
 
-            datetime_str = get_unixtime(timestamp, divide=1, have_hour=True, timezone='UTC')
+            ts_m = re.search(r'data-timestamp="(\d+)"', attrs_str)
+            ref_ts = int(ts_m.group(1)) if ts_m else int(now().timestamp())
 
-            title = clean_lst(item.xpath('./descendant-or-self::*/text()').getall())
-            if not title:
-                continue
+            sel = Selector(text=section_html)
+            for item_sel in sel.css('div.news-block__item'):
+                title_a = item_sel.css('div.news-block__title a')
+                href = title_a.attrib.get('href', '')
+                id_m = re.search(r'/news/(\d+)', href)
+                if not id_m:
+                    continue
+                news_id = id_m.group(1)
 
-            news_item = NewsItem()
-            news_item['news_type'] = news_type
-            news_item['datetime'] = datetime_str
-            news_item['title'] = title
-            news_item['content'] = None
-            news_item['mainterm'] = None
-            news_item['instrument'] = None
-            news_item['source_url'] = 'https://www.forexfactory.com/news'
+                title = title_a.css('::text').get('').strip()
+                title = re.sub(r'\s+', ' ', title)
+                if not title:
+                    continue
 
-            yield news_item
+                time_text = item_sel.css('div.news-block__details span.nowrap::text').get('').strip()
+                abs_ts = self._parse_relative_time(time_text, ref_ts)
+                datetime_str = get_unixtime(str(abs_ts), divide=1, have_hour=True, timezone='UTC')
+
+                news_item = NewsItem()
+                news_item['news_id'] = news_id
+                news_item['news_type'] = news_type
+                news_item['datetime'] = datetime_str
+                news_item['title'] = title
+                news_item['content'] = None
+                news_item['mainterm'] = None
+                news_item['instrument'] = None
+                news_item['source_url'] = f'https://www.forexfactory.com{href}'
+
+                yield news_item
+
+    def _parse_relative_time(self, text, ref_ts):
+        total_seconds = 0
+        hrs = re.search(r'(\d+)\s*hr', text)
+        mins = re.search(r'(\d+)\s*min', text)
+        if hrs:
+            total_seconds += int(hrs.group(1)) * 3600
+        if mins:
+            total_seconds += int(mins.group(1)) * 60
+        if total_seconds:
+            return ref_ts - total_seconds
+        try:
+            d = datetime.strptime(f"{text.strip()} {now().year}", '%b %d %Y')
+            return int(d.replace(tzinfo=pytz.UTC).timestamp())
+        except ValueError:
+            return ref_ts
 
     def handle_error(self, failure):
         self.logger.warning(f'Request failed: {failure.request.url}')

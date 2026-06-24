@@ -18,8 +18,9 @@ class CalendarItem(scrapy.Item):
 
 class NewsItem(scrapy.Item):
     collection = 'news'
-    unique_key = ('news_type', 'datetime', 'title')
+    unique_key = ('news_type', 'news_id')
     news_type = scrapy.Field()
+    news_id = scrapy.Field()
     datetime = scrapy.Field()
     title = scrapy.Field()
     content = scrapy.Field()
