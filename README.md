@@ -11,7 +11,7 @@ Scrapy project that crawls [ForexFactory](https://www.forexfactory.com) and stor
 | `news` | — | All 5 news feeds: latest, hottest, most viewed, latest FA, latest TA |
 | `market_instruments` | `sym1,sym2,...` | Live instrument metrics |
 | `market_bars` | `SYMBOL,COUNT,INTERVAL` | OHLCV bars |
-| `market_positions` | `SYMBOL,LIMIT,INTERVAL` | Long/short ratio time-series + stats |
+| `market_positions` | `SYMBOL,LIMIT,INTERVAL` | Long/short trader ratio time-series |
 | `market_upcoming` | `SYMBOL[,LIMIT]` | Upcoming economic events for an instrument |
 | `market_indicators_news` | `SYMBOL[,INTERVAL]` | Indicator news for an instrument |
 
@@ -24,10 +24,10 @@ source ~/env/.venv/bin/activate
 uv pip install -r requirements.txt
 ```
 
-MongoDB defaults to `mongodb://localhost:27017`, database `forexfactory`. Override via env vars:
+MongoDB defaults to `mongodb://localhost:27018`, database `forexfactory`. Override via env vars:
 
 ```bash
-export MONGODB_URI=mongodb://host:27017
+export MONGODB_URI=mongodb://host:27018
 export MONGODB_DATABASE=mydb
 ```
 

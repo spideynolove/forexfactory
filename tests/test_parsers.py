@@ -144,10 +144,12 @@ def test_positions_parse():
 
 
 def test_upcoming_parse():
-    spider = UpcomingSpider(params='eurusd,20')
-    request = Request(url='http://test', meta={'symbol': 'EURUSD'})
-    response = TextResponse(url='http://test', body=_read('upcoming.json'), request=request)
-    items = list(spider.parse(response))
+    fixed_now = datetime(2024, 6, 30, tzinfo=pytz.UTC)
+    with patch('forexfactory.spiders.market.upcoming.now', return_value=fixed_now):
+        spider = UpcomingSpider(params='eurusd,20')
+        request = Request(url='http://test', meta={'offset': 0})
+        response = HtmlResponse(url='http://test', body=_read('upcoming.html'), request=request)
+        items = [i for i in spider.parse_day(response) if isinstance(i, UpcomingItem)]
     assert len(items) == 1
     assert isinstance(items[0], UpcomingItem)
     assert items[0]['instrument'] == 'EURUSD'
