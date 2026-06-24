@@ -27,6 +27,16 @@ scrapy crawl market_bars -a params=eurusd,100,H1
 scrapy crawl market_upcoming -a params=eurusd,20
 scrapy crawl market_indicators_news -a params=eurusd,H1
 
+# Full crawl via Docker (MongoDB + scraper in containers)
+docker compose run --rm scraper /bin/sh crawl_all.sh
+
+# Query MongoDB results
+python query_mongo.py stats
+python query_mongo.py bars --instrument EURUSD --interval H1 --limit 10
+python query_mongo.py positions --instrument USDJPY
+python query_mongo.py calendar --currency USD --impact high
+python query_mongo.py news --json
+
 # Install a new package
 uv pip install <package>
 ```
@@ -37,7 +47,22 @@ This is a Scrapy project that scrapes forex economic data from forexfactory.com 
 
 ### Request pattern
 
-All calendar and news spiders POST to `https://www.forexfactory.com/flex.php` using hardcoded multipart/form-data payloads defined in `payloads.py`. `market_instruments` and `market_bars` hit `https://mds-api.forexfactory.com`. `market_positions` hits `https://www.forexfactory.com/explorerapi.php` (GET, no auth required). `market_upcoming` GETs `https://www.forexfactory.com/calendar?day=...` pages (same pattern as `calendar`/`calendar_history`), filtering events by instrument currencies and `dateline >= now`. Every request sets `meta={'impersonate': 'chrome'}` for the `scrapy-impersonate` download handler.
+- **calendar / calendar_history / market_upcoming**: GET `https://www.forexfactory.com/calendar?day=...`. Calendar data is embedded as `window.calendarComponentStates` JSON in a `<script>` tag — not in the HTML table.
+- **news**: GET `https://www.forexfactory.com/news`. Data is in `<news-block-component>` custom elements.
+- **market_instruments / market_bars**: hit `https://mds-api.forexfactory.com`.
+- **market_positions**: GET `https://www.forexfactory.com/explorerapi.php`. The `pos` field is always int `0`; real ratios come from `traders_ratio`, `traders_long`, `traders_short`.
+- **market_indicators_news**: GET `https://www.forexfactory.com/market/...`.
+
+Every request sets `meta={'impersonate': 'chrome'}` for the `scrapy-impersonate` download handler.
+
+### Proxy rotation
+
+`scrapy-rotating-proxies` handles proxy rotation and ban detection. Configure via:
+- `PROXY_LIST_PATH` env var — path to plain-text `host:port` proxy list
+- `ROTATING_PROXY_PAGE_RETRY_TIMES = 10` — retries per page with different proxies
+- `BanDetectionMiddleware` marks proxies dead on timeouts and connection errors
+
+`docker-compose.yml` mounts `~/proxies.txt` into the container at `/proxies/proxies.txt`.
 
 ### Items and MongoDB storage
 
@@ -59,7 +84,8 @@ Multi-argument spiders accept a single `-a params=...` string that is split by c
 - `get_num(string)` — strips non-numeric characters, used for actual/forecast/previous fields
 - `tran_s(sstr)` — converts 6-char symbol like `eurusd` to `EUR/USD`
 - `SPECIALS` — maps non-standard symbols (`nikkei`, `gold`) to their API names
+- `now()` — returns current UTC datetime (patchable in tests)
 
 ### Environment
 
-MongoDB connection defaults to `mongodb://localhost:27018`, database `forexfactory`. Override via `MONGODB_URI` and `MONGODB_DATABASE` env vars.
+MongoDB connection defaults to `mongodb://localhost:27018`, database `forexfactory`. Override via `MONGODB_URI` and `MONGODB_DATABASE` env vars. Docker compose passes `mongodb://mongo:27017` (internal network).

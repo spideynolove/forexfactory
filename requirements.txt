@@ -1,5 +1,8 @@
 scrapy==2.12
 scrapy-impersonate>=1.5
+scrapy-rotating-proxies>=0.6
 pymongo>=4.6
 pytz>=2024.1
 pytest>=8
+twisted<26
+pyopenssl>=23.2.0
