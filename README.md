@@ -36,7 +36,9 @@ export MONGODB_DATABASE=mydb
 
 ### Docker (recommended)
 
-Runs MongoDB + scraper in isolated containers.
+Docker runs MongoDB and the scraper in isolated containers. **You do not need to install Python, activate any conda/virtualenv, or run `pip install` yourself** — the Dockerfile handles all of that inside the container. Any Python environment on your host machine is irrelevant.
+
+Data is stored in a named Docker volume (`mongo_data`) that persists on your host across container restarts.
 
 ```bash
 # Start MongoDB only
