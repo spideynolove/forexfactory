@@ -13,9 +13,6 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongo:27017
       - MONGODB_DATABASE=forexfactory
-      - PROXY_LIST_PATH=/proxies/proxies.txt
-    volumes:
-      - ${HOME}/proxies.txt:/proxies/proxies.txt:ro
 
 volumes:
   mongo_data:

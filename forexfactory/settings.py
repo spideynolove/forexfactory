@@ -19,11 +19,6 @@ DOWNLOAD_HANDLERS = {
     'https': 'scrapy_impersonate.ImpersonateDownloadHandler',
 }
 
-DOWNLOADER_MIDDLEWARES = {
-    'rotating_proxies.middlewares.RotatingProxyMiddleware': 610,
-    'rotating_proxies.middlewares.BanDetectionMiddleware': 620,
-}
-
 ITEM_PIPELINES = {
     'forexfactory.pipelines.MongoPipeline': 300,
 }
@@ -33,9 +28,13 @@ MONGODB_DATABASE = os.environ.get('MONGODB_DATABASE', 'forexfactory')
 
 _proxy_path = os.environ.get('PROXY_LIST_PATH', '')
 if _proxy_path:
+    DOWNLOADER_MIDDLEWARES = {
+        'rotating_proxies.middlewares.RotatingProxyMiddleware': 610,
+        'rotating_proxies.middlewares.BanDetectionMiddleware': 620,
+    }
     ROTATING_PROXY_LIST_PATH = _proxy_path
-ROTATING_PROXY_PAGE_RETRY_TIMES = 10
-CONCURRENT_REQUESTS_PER_IP = 1
+    ROTATING_PROXY_PAGE_RETRY_TIMES = 10
+    CONCURRENT_REQUESTS_PER_IP = 1
 
 LOG_LEVEL = 'INFO'
 LOG_FORMAT = '%(levelname)s: %(message)s'

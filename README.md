@@ -36,27 +36,31 @@ export MONGODB_DATABASE=mydb
 
 ### Docker (recommended)
 
-Runs MongoDB + scraper in isolated containers. Proxies are mounted read-only from the host.
+Runs MongoDB + scraper in isolated containers.
 
 ```bash
 # Start MongoDB only
 docker compose up -d mongo
 
-# Full crawl (all spiders) with proxies
+# Full crawl — no proxies
 docker compose run --rm scraper /bin/sh crawl_all.sh
 
-# Override proxy list path
-docker compose run --rm -e PROXY_LIST_PATH=/proxies/proxies.txt scraper /bin/sh crawl_all.sh
+# Full crawl — with proxies (mount your proxy list into the container)
+docker compose run --rm \
+  -e PROXY_LIST_PATH=/proxies/proxies.txt \
+  -v ~/proxies.txt:/proxies/proxies.txt:ro \
+  scraper /bin/sh crawl_all.sh
 ```
-
-`docker-compose.yml` mounts `~/proxies.txt` into the container at `/proxies/proxies.txt`.
 
 ## Proxy rotation
 
-`scrapy-rotating-proxies` is configured in `settings.py`. Set `PROXY_LIST_PATH` (env var) to a plain-text file of `host:port` proxies (one per line). If unset, requests run without a proxy.
+Proxies are **optional**. Set `PROXY_LIST_PATH` to a plain-text `host:port` file (one per line) to enable `scrapy-rotating-proxies`. If unset, the proxy middleware is not loaded and requests go direct.
 
 ```bash
-# Local run with proxies
+# Local — no proxies
+scrapy crawl calendar
+
+# Local — with proxies
 PROXY_LIST_PATH=~/proxies.txt scrapy crawl calendar
 ```
 
